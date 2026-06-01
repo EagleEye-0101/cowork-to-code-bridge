@@ -508,8 +508,62 @@ fi
 
 exit 0
 PC
-chmod +x "$BRIDGE_ROOT"/scripts/mac_*.sh "$BRIDGE_ROOT/scripts/port_check.sh"
-c_green "  ✓ scripts installed: ping, hello, run_claude, mac_health, mac_ram, mac_disk, mac_top, mac_network, port_check"
+cat > "$BRIDGE_ROOT/scripts/docker_logs.sh" <<'DL'
+#!/usr/bin/env bash
+# docker_logs.sh — tail logs from a Docker container (macOS or Linux).
+# Usage from Cowork: call_remote("scripts/docker_logs.sh", args=["my-container"])
+#                    call_remote("scripts/docker_logs.sh", args=["my-container", "100"])
+set -u
+
+usage() {
+  echo "Usage: $0 CONTAINER [LINES]" >&2
+  echo "CONTAINER is the container name or ID." >&2
+  echo "LINES is how many log lines to show (default 50)." >&2
+  exit 2
+}
+
+CONTAINER="${1:-}"
+LINES="${2:-50}"
+
+if [ -z "$CONTAINER" ]; then
+  usage
+fi
+
+case "$LINES" in
+  *[!0-9]*)
+    echo "LINES must be a positive number (got: $LINES)" >&2
+    exit 2
+    ;;
+esac
+
+if [ "$LINES" -lt 1 ]; then
+  echo "LINES must be at least 1 (got: $LINES)" >&2
+  exit 2
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: docker CLI not found — install Docker Desktop or the Docker engine." >&2
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "Error: Docker daemon is not running — start Docker Desktop or the docker service." >&2
+  exit 1
+fi
+
+if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+  echo "Error: container '$CONTAINER' does not exist." >&2
+  echo "Existing containers:" >&2
+  docker ps -a --format '  {{.Names}}' 2>/dev/null | head -20 >&2 || true
+  exit 1
+fi
+
+echo "=== DOCKER LOGS: $CONTAINER (last $LINES lines) ==="
+docker logs --tail "$LINES" "$CONTAINER" 2>&1
+exit 0
+DL
+chmod +x "$BRIDGE_ROOT"/scripts/mac_*.sh "$BRIDGE_ROOT/scripts/port_check.sh" "$BRIDGE_ROOT/scripts/docker_logs.sh"
+c_green "  ✓ scripts installed: ping, hello, run_claude, mac_health, mac_ram, mac_disk, mac_top, mac_network, port_check, docker_logs"
 
 # ─── 5b. Fetch the single-file Cowork client (one source of truth) ───────────
 # bridge_client.py is the EXACT file the Cowork sandbox imports. To avoid drift,
@@ -586,7 +640,7 @@ Always pass a unique \`idempotency_key\` — Claude Code tasks have side effects
 retry must not run twice.
 
 ## Step 3 — quick system checks (no agent)
-\`call_remote("scripts/mac_health.sh")\` · \`mac_ram.sh\` · \`mac_disk.sh\` · \`mac_top.sh\` · \`mac_network.sh\` · \`port_check.sh\`
+\`call_remote("scripts/mac_health.sh")\` · \`mac_ram.sh\` · \`mac_disk.sh\` · \`mac_top.sh\` · \`mac_network.sh\` · \`port_check.sh\` · \`docker_logs.sh\`
 
 ## Results
 Dict with exit_code/stdout/stderr. Codes: -1 refused, -2 timeout, -3 internal,
@@ -629,7 +683,7 @@ Always pass a unique idempotency_key (tasks have side effects). For long builds,
 use call_remote_streaming(..., on_progress=cb).
 
 ## Quick checks (no agent)
-scripts/mac_health.sh · mac_ram.sh · mac_disk.sh · mac_top.sh · mac_network.sh · port_check.sh <port>
+scripts/mac_health.sh · mac_ram.sh · mac_disk.sh · mac_top.sh · mac_network.sh · port_check.sh <port> · docker_logs.sh <container> [lines]
 
 Results: dict with exit_code/stdout/stderr (-1 refused, -2 timeout, -3 internal,
 -4 crashed). Never claim success without exit_code 0 / BRIDGE LIVE.

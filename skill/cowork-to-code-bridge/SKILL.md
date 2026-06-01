@@ -101,6 +101,8 @@ For simple, fast system queries, call a ready-made script directly:
 | "what's using CPU?" | `call_remote("scripts/mac_top.sh")` |
 | "network status?" | `call_remote("scripts/mac_network.sh")` |
 | "what's listening on port 3000?" | `call_remote("scripts/port_check.sh", args=["3000"])` |
+| "show docker logs for my-app" | `call_remote("scripts/docker_logs.sh", args=["my-app"])` |
+| "last 100 lines of postgres logs" | `call_remote("scripts/docker_logs.sh", args=["postgres", "100"])` |
 
 For a repeatable custom action, help the user save a small script in
 `~/.cowork-to-code-bridge/scripts/` on their Mac, then call it by name.
